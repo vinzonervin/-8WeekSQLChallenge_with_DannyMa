@@ -1,0 +1,301 @@
+-- case study # 3 foodie_fi
+-- A. Customer Journey
+-- Based off the 8 sample customers provided in the sample from the subscriptions table, write a brief description about each customer’s onboarding journey.
+-- Try to keep it as short as possible - you may also want to run some sort of join to make your explanations a bit easier!
+
+-- query to create the sample list of subscription table
+select 
+    s.*, 
+    p.*
+from foodie_fi.plans as p
+join foodie_fi.subscriptions as s
+on p.plan_id = s.plan_id
+where s.customer_id in (1,2,11,13,15,16,18,19)
+order by s.customer_id, s.start_date asc
+
+-- onboarding explanation per customer
+-- customer#1 started its journey on 2020-08-01 on a trial version then upgraded to a basic monthly plan on 2020-08-08
+-- customer#2 started its journey on 2020-09-20 on a trial version then upgraded to a pro anual plan on 2020-09-27
+-- customer#11 started its journey on 2020-11-19 on a trial version and did not upgrade 
+-- customer#13 started its journey on 2020-12-15 on a trial version then upgraded to a basic monthly plan on 2020-12-22 then upgraded to pro monthly on 2021-03-29
+-- customer#15 started its journey on 2020-03-17 on a trial version then upgraded to a pro monthly plan on 2020-03-24 then cancel subscription on 2020-04-29
+-- customer#16 started its journey on 2020-05-31 on a trial version then upgraded to a basic monthly plan on 2020-06-07 then upgrade to pro annual on 2020-10-21
+-- customer#18 started its journey on 2020-07-06 on a trial version then upgraded to a pro monthly plan on 2020-10-21
+-- customer#19 started its journey on 2020-06-22 on a tiral version then upgraded to a pro monthly plan on 2020-06-29 then upgraded again on a pro annual plan on 2020-08-29
+
+-- B. Data Analysis Questions
+-- How many customers has Foodie-Fi ever had?
+
+select 
+    count(distinct customer_id) as n_customers
+from foodie_fi.subscriptions
+
+-- What is the monthly distribution of trial plan start_date values for our dataset - use the start of the month as the group by value
+
+select
+    date_trunc('month',s.start_date)::date as month_start, 
+    count(s.start_date) as n_trials
+from foodie_fi.plans as p
+join foodie_fi.subscriptions as s
+on p.plan_id = s.plan_id
+where p.plan_name = 'trial'
+group by month_start
+order by month_start
+
+-- What plan start_date values occur after the year 2020 for our dataset? Show the breakdown by count of events for each plan_name
+
+select
+    p.plan_name, 
+    count(s.start_date) as n_events
+from foodie_fi.plans as p
+join foodie_fi.subscriptions as s
+on p.plan_id = s.plan_id
+group by p.plan_name
+order by n_events desc
+
+
+
+-- What is the customer count and percentage of customers who have churned rounded to 1 decimal place?
+
+select
+    count(distinct s.customer_id) as customer_count,
+    round((count(case when p.plan_name = 'churn' then s.customer_id end)::float / count(distinct s.customer_id)::float)::numeric*100, 1) as churn_percentage
+from foodie_fi.plans as p
+join foodie_fi.subscriptions as s
+on p.plan_id = s.plan_id
+
+
+-- What is the monthly distribution of trial plan start_date values for our dataset - use the start of the month as the group by value
+
+select
+    date_trunc('month',s.start_date)::date as month_start, 
+    count(s.start_date) as n_trials
+from foodie_fi.plans as p
+join foodie_fi.subscriptions as s
+on p.plan_id = s.plan_id
+where p.plan_name = 'trial'
+group by month_start
+order by month_start
+
+-- What plan start_date values occur after the year 2020 for our dataset? Show the breakdown by count of events for each plan_name
+
+select
+    p.plan_name, 
+    count(s.start_date) as n_events
+from foodie_fi.plans as p
+join foodie_fi.subscriptions as s
+on p.plan_id = s.plan_id
+group by p.plan_name
+order by n_events desc
+
+
+
+-- What is the customer count and percentage of customers who have churned rounded to 1 decimal place?
+
+select
+    count(distinct s.customer_id) as customer_count,
+    round((count(case when p.plan_name = 'churn' then s.customer_id end)::float / count(distinct s.customer_id)::float)::numeric*100, 1) as churn_percentage
+from foodie_fi.plans as p
+join foodie_fi.subscriptions as s
+on p.plan_id = s.plan_id
+
+-- How many customers have churned straight after their initial free trial - what percentage is this rounded to the nearest whole number?
+
+with cte as (
+select
+    s.customer_id,
+    s.start_date,
+    p.plan_name, 
+    rank() over(partition by s.customer_id order by start_date) as ranking
+from foodie_fi.plans as p
+join foodie_fi.subscriptions as s
+on p.plan_id = s.plan_id
+group by s.customer_id, s.start_date, p.plan_name
+order by s.customer_id
+)
+select
+    count( case when ranking = 2 and plan_name ilike '%churn%' then customer_id end) as churned_after_trial,
+    round((count( case when ranking = 2 and plan_name ilike '%churn%' then customer_id end)::float/count(distinct customer_id)::float)*100::numeric) as churn_percentage
+from cte
+
+-- What is the number and percentage of customer plans after their initial free trial?
+
+select
+    count(distinct case when p.plan_name not in ('trial','churn') then s.customer_id end) as n_plans,
+    round((count(distinct case when p.plan_name not in ('trial','churn') then s.customer_id end)::float / count(distinct customer_id)::float)*100::numeric) as plan_percentage
+from foodie_fi.plans as p
+join foodie_fi.subscriptions as s
+on p.plan_id = s.plan_id
+
+-- What is the customer count and percentage breakdown of all 5 plan_name values at 2020-12-31?
+
+    select
+        'trial' as plan_name,
+        count(distinct case when p.plan_name like '%trial%' then s.customer_id end) as n_customer,
+        round((count(distinct case when p.plan_name like '%trial%' then s.customer_id end)::float / count(distinct case when p.plan_name like '%trial%' then s.customer_id end)::float)*100::numeric) as n_percentage
+    from foodie_fi.plans as p
+    join foodie_fi.subscriptions as s
+    on p.plan_id = s.plan_id
+    where s.start_date <= '2020-12-31'
+    union all
+    select
+        'basic monthly' as plan_name,
+        count(distinct case when p.plan_name like '%basic monthly%' then s.customer_id end) as n_basicmonthly,
+        round((count(distinct case when p.plan_name like '%basic monthly%' then s.customer_id end)::float/count(distinct case when p.plan_name like '%trial%' then s.customer_id end)::float)*100::numeric)
+    from foodie_fi.plans as p
+    join foodie_fi.subscriptions as s
+    on p.plan_id = s.plan_id
+    where s.start_date <= '2020-12-31'
+    union all
+    select
+        'pro monthly' as plan_name,
+        count(distinct case when p.plan_name like '%pro monthly%' then s.customer_id end) as n_promonthly,
+        round((count(distinct case when p.plan_name like '%pro monthly%' then s.customer_id end)::float/count(distinct case when p.plan_name like '%trial%' then s.customer_id end)::float)*100::numeric)
+    from foodie_fi.plans as p
+    join foodie_fi.subscriptions as s
+    on p.plan_id = s.plan_id
+    where s.start_date <= '2020-12-31'
+    union all
+    select
+        'pro annual' as plan_name,
+        count(distinct case when p.plan_name like '%pro annual%' then s.customer_id end) as n_proannual,
+        round((count(distinct case when p.plan_name like '%pro annual%' then s.customer_id end)::float/count(distinct case when p.plan_name like '%trial%' then s.customer_id end)::float)*100::numeric)
+    from foodie_fi.plans as p
+    join foodie_fi.subscriptions as s
+    on p.plan_id = s.plan_id
+    where s.start_date <= '2020-12-31'
+    union all
+    select
+        'churn' as plan_name,
+        count(distinct case when p.plan_name like '%churn%' then s.customer_id end) as n_churn,
+        round((count(distinct case when p.plan_name like '%churn%' then s.customer_id end)::float/count(distinct case when p.plan_name like '%trial%' then s.customer_id end)::float)*100::numeric)
+    from foodie_fi.plans as p
+    join foodie_fi.subscriptions as s
+    on p.plan_id = s.plan_id
+    where s.start_date <= '2020-12-31'
+    order by n_percentage desc
+
+
+-- How many customers have upgraded to an annual plan in 2020?
+
+select
+    'annual plan' as plan_name,
+    count(distinct s.customer_id) as n_annualplan
+from foodie_fi.plans as p
+join foodie_fi.subscriptions as s
+on p.plan_id = s.plan_id
+where extract('year' from s.start_date) = '2020' and p.plan_name like 'pro annual'
+
+-- How many days on average does it take for a customer to an annual plan from the day they join Foodie-Fi?
+
+with cte as(
+select
+    s.customer_id, 
+    s.start_date,
+    LAG(s.start_date) OVER (PARTITION BY customer_id ORDER BY start_date) AS previous_start_date,
+    p.plan_name
+from foodie_fi.plans as p
+join foodie_fi.subscriptions as s
+on p.plan_id = s.plan_id
+where p.plan_name in ('pro annual', 'trial')
+order by s.customer_id
+)
+select
+    round(avg(start_date - previous_start_date)::numeric,2) as avg_upgrade_days
+from cte
+where previous_start_date is not null
+
+
+-- Can you further breakdown this average value into 30 day periods (i.e. 0-30 days, 31-60 days etc)
+
+-- short query
+WITH cte AS (
+    SELECT
+        s.customer_id, 
+        s.start_date,
+        LAG(s.start_date) OVER (PARTITION BY customer_id ORDER BY start_date) AS previous_start_date,
+        p.plan_name
+    FROM foodie_fi.plans AS p
+    JOIN foodie_fi.subscriptions AS s ON p.plan_id = s.plan_id
+    WHERE p.plan_name IN ('pro annual', 'trial')
+    ORDER BY s.customer_id
+),
+cte3 AS (
+    SELECT
+        round((start_date - previous_start_date)/30) AS thirty_day_window,
+        ((round((start_date - previous_start_date)/30) + 1) * 30) AS next_window,
+        round(avg((start_date - previous_start_date))::numeric) AS avg_days
+    FROM (
+        SELECT
+            c.customer_id,
+            c.start_date,
+            c.previous_start_date
+        FROM cte c
+        WHERE c.plan_name LIKE 'pro annual'
+    ) AS subquery
+    GROUP BY thirty_day_window, next_window
+    ORDER BY thirty_day_window
+)
+SELECT
+    COALESCE(
+        (lag(next_window, 1) OVER (ORDER BY thirty_day_window) + 1) || '-' || next_window || ' days',
+        '0-' || next_window || ' days'
+    ) AS thirty_day_periods,
+    avg_days
+FROM cte3;
+
+-- long query
+
+with cte as(
+select
+    s.customer_id, 
+    s.start_date,
+    LAG(s.start_date) OVER (PARTITION BY customer_id ORDER BY start_date) AS previous_start_date,
+    p.plan_name
+from foodie_fi.plans as p
+join foodie_fi.subscriptions as s
+on p.plan_id = s.plan_id
+where p.plan_name in ('pro annual', 'trial')
+order by s.customer_id
+), cte2 as(
+select
+    round((start_date - previous_start_date)/30) as thirty_day_window,
+    (start_date - previous_start_date) as days  
+from cte
+where plan_name like 'pro annual'
+), cte3 as (
+select
+    thirty_day_window,
+    (thirty_day_window + 1) * 30 as next_window,
+    round(avg(days)::numeric) as avg_days
+from cte2
+group by thirty_day_window, next_window
+order by thirty_day_window
+)
+select
+    case when lag(next_window,1) over(order by thirty_day_window) is null then 0
+    else lag(next_window,1) over(order by thirty_day_window)+ 1 end || '-' || next_window || ' days'
+    as thirty_day_periods,
+    avg_days
+from cte3
+
+
+-- How many customers downgraded from a pro monthly to a basic monthly plan in 2020?
+
+with cte as(
+select
+    s.customer_id, 
+    s.start_date,
+    p.plan_name,
+    lead(p.plan_name,1) over(partition by s.customer_id order by start_date) as next_plan
+from foodie_fi.plans as p
+join foodie_fi.subscriptions as s
+on p.plan_id = s.plan_id
+where extract (year from s.start_date) = '2020'
+and p.plan_name in ('basic monthly', 'pro monthly')
+order by s.customer_id
+)
+select
+    count(distinct customer_id) as n_customer_basic_monthly_dg
+from cte
+where next_plan like'%basic monthly%'
