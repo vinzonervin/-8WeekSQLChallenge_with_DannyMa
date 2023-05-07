@@ -78,21 +78,21 @@ order by customer_id
 
 with cte as (
 select
-	s.customer_id,
-	m.product_name,
-	min(s.order_date) as first_order_date,
-	rank() over(partition by s.customer_id order by min(s.order_date)) as ranking
+    s.customer_id,
+    m.product_name,
+    min(s.order_date) as first_order_date,
+    rank() over(partition by s.customer_id order by min(s.order_date)) as ranking
 from dannys_diner.sales as s
 join dannys_diner.members as mb
-on s.customer_id = mb.customer_id and s.order_date > mb.join_date
+on s.customer_id = mb.customer_id and s.order_date >= mb.join_date
 join dannys_diner.menu as m
 on s.product_id = m.product_id
 group by s.customer_id, m.product_name
 order by ranking
 )
 select
-	customer_id, 
-	product_name
+    customer_id, 
+    product_name
 from cte
 where ranking=1
 
@@ -100,30 +100,28 @@ where ranking=1
 
 with cte as(
 select
-	s.customer_id,
-	m.product_name,
-	min(s.order_date) as first_order_date,
-	rank() over(partition by s.customer_id order by min(s.order_date)) as ranking
+    s.customer_id,
+    m.product_name,
+    rank() over(partition by s.customer_id order by s.order_date desc) as ranking
 from dannys_diner.sales as s
 join dannys_diner.members as mb
 on s.customer_id = mb.customer_id and s.order_date < mb.join_date
 join dannys_diner.menu as m
 on s.product_id = m.product_id
-group by s.customer_id, m.product_name
 order by ranking
 )
 select
-	customer_id, 
-	product_name
+    customer_id, 
+    product_name
 from cte
 where ranking=1
 
 -- What is the total items and amount spent for each member before they became a member?
 
 select
-	s.customer_id, 
-	count(s.order_date) as total_items,
-	sum(m.price) as total_spent
+    s.customer_id, 
+    count(s.order_date) as total_items,
+    sum(m.price) as total_spent
 from dannys_diner.sales as s
 join dannys_diner.members as mb
 on s.customer_id = mb.customer_id and s.order_date < mb.join_date
@@ -133,40 +131,39 @@ group by s.customer_id
 order by total_spent desc
 
 -- If each $1 spent equates to 10 points and sushi has a 2x points multiplier - how many points would each customer have?
-
 select
-	s.customer_id, 
-	sum(case when m.product_name ='sushi' then 20
-	else 10 end) as total_points
+    s.customer_id, 
+    sum(case when m.product_name ='sushi' then m.price*20
+    else m.price*10 end) as total_points
 from dannys_diner.sales as s
 join dannys_diner.menu as m
 on s.product_id = m.product_id
 group by s.customer_id
 order by total_points desc
 
+
 -- In the first week after a customer joins the program (including their join date) they earn 2x points on all items, not just sushi - how many points do customer A and B have at the end of January?
 
 with cte as (
 select
-	s.*,
-	mb.join_date,
-	mb.join_date + interval '1 week' as one_week_after,
-	count(s.order_date) as n_orders
+    s.*,
+    mb.join_date,
+    mb.join_date + 6 as one_week_after, 
+    m.price
 from dannys_diner.sales as s
 join dannys_diner.members as mb
-on s.customer_id = mb.customer_id and s.order_date >= mb.join_date
+on s.customer_id = mb.customer_id 
 join dannys_diner.menu as m
 on s.product_id = m.product_id
-where order_date < '2021-02-01'
-group by s.customer_id, s.order_date, s.product_id, mb.join_date
 order by s.customer_id asc
 )
 select
-	customer_id, 
-	sum(case
-		when order_date > one_week_after then 10
-		when order_date between join_date and one_week_after then 20
-	end) as total_points
+    customer_id, 
+    sum(case
+        when product_id ='1' then price*20
+        when order_date between join_date and one_week_after then price*20
+        else price*10
+    end) as total_points
 from cte
 group by customer_id
 order by total_points desc
